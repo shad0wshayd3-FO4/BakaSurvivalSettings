@@ -31,6 +31,12 @@ namespace MCM
 			inline static bool bToggleGodMode{ true };
 		};
 
+		class Runtime
+		{
+		public:
+			inline static std::int32_t iAmmoWeight{ 6 };
+		};
+
 		static void Update()
 		{
 			if (m_FirstRun)
@@ -38,8 +44,7 @@ namespace MCM
 				m_FirstRun = false;
 			}
 
-			m_ini_base.LoadFile("Data/MCM/Config/BakaSurvivalSettings/settings.ini");
-			m_ini_user.LoadFile("Data/MCM/Settings/BakaSurvivalSettings.ini");
+			ResetStateInit();
 
 			GetModSettingBool("General", "bEnable", General::bEnable);
 
@@ -59,13 +64,34 @@ namespace MCM
 			GetModSettingBool("Setting", "bSurvivalLock", Setting::bSurvivalLock);
 			GetModSettingBool("Setting", "bToggleGodMode", Setting::bToggleGodMode);
 
-			m_ini_base.Reset();
-			m_ini_user.Reset();
+			ResetStatePost();
 		}
 
 		inline static bool m_FirstRun{ true };
 
 	private:
+		static void ResetStateInit()
+		{
+			m_ini_base.LoadFile("Data/MCM/Config/BakaSurvivalSettings/settings.ini");
+			m_ini_user.LoadFile("Data/MCM/Settings/BakaSurvivalSettings.ini");
+		}
+
+		static void ResetStatePost()
+		{
+			if (General::bEnable)
+			{
+				Runtime::iAmmoWeight = (Setting::bAmmoWeight) ? 6 : 7;
+			}
+			else
+			{
+				Runtime::iAmmoWeight = 6;
+			}
+
+			m_ini_base.Reset();
+			m_ini_user.Reset();
+		}
+
+	protected:
 		static void GetModSettingBool(const std::string& a_section, const std::string& a_setting, bool& a_value)
 		{
 			auto base = m_ini_base.GetBoolValue(a_section.c_str(), a_setting.c_str(), a_value);

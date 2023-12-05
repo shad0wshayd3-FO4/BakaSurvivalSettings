@@ -1,5 +1,66 @@
 #include "MCM/MCM.h"
 
+namespace ObScript
+{
+	class UpdateSettings
+	{
+	public:
+		static void Install()
+		{
+			const auto functions = RE::SCRIPT_FUNCTION::GetConsoleFunctions();
+			const auto it = std::find_if(
+				functions.begin(),
+				functions.end(),
+				[&](auto&& a_elem)
+				{
+					return _stricmp(a_elem.functionName, "PrintAiList") == 0;
+				});
+
+			if (it != functions.end())
+			{
+				*it = RE::SCRIPT_FUNCTION{ LONG_NAME.data(), SHORT_NAME.data(), it->output };
+				it->helpString = HelpString().data();
+				it->executeFunction = Execute;
+
+				logger::debug("Registered UpdateSettings."sv);
+			}
+			else
+			{
+				logger::debug("Failed to register UpdateSettings."sv);
+			}
+		}
+
+	private:
+		static bool Execute(
+			const RE::SCRIPT_PARAMETER*,
+			const char*,
+			RE::TESObjectREFR*,
+			RE::TESObjectREFR*,
+			RE::Script*,
+			RE::ScriptLocals*,
+			float&,
+			std::uint32_t&)
+		{
+			MCM::Settings::Update();
+			return true;
+		}
+
+		[[nodiscard]] static const std::string& HelpString()
+		{
+			static auto help = []()
+			{
+				std::string buf;
+				buf += ""sv;
+				return buf;
+			}();
+			return help;
+		}
+
+		static constexpr auto LONG_NAME = "UpdateSettings"sv;
+		static constexpr auto SHORT_NAME = "bus"sv;
+	};
+}
+
 class Hooks
 {
 public:
@@ -17,7 +78,7 @@ public:
 
 		if (!MCM::Settings::Setting::bAmmoWeight)
 		{
-			hkcmpEAX<1321341, 0x121>::Install();  // TESWeightForm::GetFormWeight
+		//	hkcmpEAX<1321341, 0x121>::Install();  // TESWeightForm::GetFormWeight
 		}
 
 		if (!MCM::Settings::Setting::bConsole)
@@ -98,6 +159,8 @@ public:
 			hkcmpEAX<1111932, 0x3E>::Install();  // PlayerCharacter::IsInvulnerable
 			hkcmpEAX<1240293, 0x7A>::Install();  // PlayerCharacter::KillImpl
 		}
+
+		hkTest::Install();
 	}
 
 private:
@@ -172,6 +235,46 @@ private:
 			}
 		};
 	};
+
+class hkTest
+{
+public:
+	static void Install()
+	{
+		static REL::Relocation<std::uintptr_t> hook{ REL::ID(1321341), 0x121 };
+		static REL::Relocation<std::uintptr_t> retn{ REL::ID(1321341), 0x12D };
+		static REL::Relocation<std::uintptr_t> jnzA{ REL::ID(1321341), 0xB4 };
+
+		REL::safe_fill(hook.address(), REL::NOP, 0x0C);
+		auto code = Example{ retn.address(), jnzA.address() };
+
+		auto& trampoline = F4SE::GetTrampoline();
+		auto patch = trampoline.allocate(code);
+
+		trampoline.write_branch<6>(hook.address(), patch);
+	}
+
+private:
+	struct Example : Xbyak::CodeGenerator
+	{
+		Example(std::uintptr_t a_retn, std::uintptr_t a_jnz)
+		{
+			mov(rcx, reinterpret_cast<std::uintptr_t>(std::addressof(cmpValue)));
+			mov(ecx, ptr[rcx]);
+			cmp(eax, ecx);
+			jnz("nyo");
+			add(rbx, 0x150);
+			mov(rcx, a_retn);
+			jmp(rcx);
+
+			L("nyo");
+			mov(rcx, a_jnz);
+			jmp(rcx);
+		}
+	};
+};
+
+inline static std::int32_t cmpValue{ 6 };
 };
 
 namespace
@@ -230,8 +333,12 @@ extern "C" DLLEXPORT bool F4SEAPI F4SEPlugin_Load(const F4SE::LoadInterface* a_F
 	logger::debug("Debug logging enabled."sv);
 
 	F4SE::Init(a_F4SE);
+	F4SE::AllocTrampoline(1u << 10);
 
 	MCM::Settings::Update();
+
+	ObScript::UpdateSettings::Install();
+
 	Hooks::Install();
 
 	return true;
