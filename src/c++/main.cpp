@@ -78,7 +78,7 @@ public:
 
 		if (!MCM::Settings::Setting::bAmmoWeight)
 		{
-		//	hkcmpEAX<1321341, 0x121>::Install();  // TESWeightForm::GetFormWeight
+			//	hkcmpEAX<1321341, 0x121>::Install();  // TESWeightForm::GetFormWeight
 		}
 
 		if (!MCM::Settings::Setting::bConsole)
@@ -236,45 +236,45 @@ private:
 		};
 	};
 
-class hkTest
-{
-public:
-	static void Install()
+	class hkTest
 	{
-		static REL::Relocation<std::uintptr_t> hook{ REL::ID(1321341), 0x121 };
-		static REL::Relocation<std::uintptr_t> retn{ REL::ID(1321341), 0x12D };
-		static REL::Relocation<std::uintptr_t> jnzA{ REL::ID(1321341), 0xB4 };
-
-		REL::safe_fill(hook.address(), REL::NOP, 0x0C);
-		auto code = Example{ retn.address(), jnzA.address() };
-
-		auto& trampoline = F4SE::GetTrampoline();
-		auto patch = trampoline.allocate(code);
-
-		trampoline.write_branch<6>(hook.address(), patch);
-	}
-
-private:
-	struct Example : Xbyak::CodeGenerator
-	{
-		Example(std::uintptr_t a_retn, std::uintptr_t a_jnz)
+	public:
+		static void Install()
 		{
-			mov(rcx, reinterpret_cast<std::uintptr_t>(std::addressof(cmpValue)));
-			mov(ecx, ptr[rcx]);
-			cmp(eax, ecx);
-			jnz("nyo");
-			add(rbx, 0x150);
-			mov(rcx, a_retn);
-			jmp(rcx);
+			static REL::Relocation<std::uintptr_t> hook{ REL::ID(1321341), 0x121 };
+			static REL::Relocation<std::uintptr_t> retn{ REL::ID(1321341), 0x12D };
+			static REL::Relocation<std::uintptr_t> jnzA{ REL::ID(1321341), 0xB4 };
 
-			L("nyo");
-			mov(rcx, a_jnz);
-			jmp(rcx);
+			REL::safe_fill(hook.address(), REL::NOP, 0x0C);
+			auto code = Example{ retn.address(), jnzA.address() };
+
+			auto& trampoline = F4SE::GetTrampoline();
+			auto patch = trampoline.allocate(code);
+
+			trampoline.write_branch<6>(hook.address(), patch);
 		}
-	};
-};
 
-inline static std::int32_t cmpValue{ 6 };
+	private:
+		struct Example : Xbyak::CodeGenerator
+		{
+			Example(std::uintptr_t a_retn, std::uintptr_t a_jnz)
+			{
+				mov(rcx, reinterpret_cast<std::uintptr_t>(std::addressof(cmpValue)));
+				mov(ecx, ptr[rcx]);
+				cmp(eax, ecx);
+				jnz("nyo");
+				add(rbx, 0x150);
+				mov(rcx, a_retn);
+				jmp(rcx);
+
+				L("nyo");
+				mov(rcx, a_jnz);
+				jmp(rcx);
+			}
+		};
+	};
+
+	inline static std::int32_t cmpValue{ 6 };
 };
 
 namespace
