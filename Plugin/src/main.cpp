@@ -101,7 +101,7 @@ public:
 	}
 
 private:
-	template<std::uint64_t ID, std::ptrdiff_t OFF>
+	template <std::uint64_t ID, std::ptrdiff_t OFF>
 	class hkcmpEAX
 	{
 	public:
@@ -125,7 +125,7 @@ private:
 		};
 	};
 
-	template<std::uint64_t ID, std::ptrdiff_t OFF>
+	template <std::uint64_t ID, std::ptrdiff_t OFF>
 	class hkcmpEBX
 	{
 	public:
@@ -149,7 +149,7 @@ private:
 		};
 	};
 
-	template<std::uint64_t ID, std::ptrdiff_t OFF>
+	template <std::uint64_t ID, std::ptrdiff_t OFF>
 	class hkmovEDX
 	{
 	public:
@@ -189,8 +189,8 @@ namespace
 
 		auto log = std::make_shared<spdlog::logger>("global log"s, std::move(sink));
 		auto lvl = *Settings::General::EnableDebugLogging
-		               ? spdlog::level::trace
-		               : spdlog::level::info;
+		             ? spdlog::level::trace
+		             : spdlog::level::info;
 
 		log->set_level(lvl);
 		log->flush_on(lvl);
