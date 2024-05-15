@@ -3,7 +3,6 @@
     "name": "bakasurvivalsettings",
     "homepage": "https://github.com/shad0wshayd3-FO4/BakaSurvivalSettings",
     "dependencies": [
-        "boost-stl-interfaces",
         "nlohmann-json",
         "rsm-mmio",
         "simpleini",
