@@ -5,44 +5,44 @@ class Hooks
 public:
 	static void Install()
 	{
-		if (!MCM::Settings::General::bEnable)
+		if (!MCM::Settings::General::bEnable.GetValue())
 		{
 			return;
 		}
 
-		if (!MCM::Settings::Setting::bAidWeight)
+		if (!MCM::Settings::Setting::bAidWeight.GetValue())
 		{
 			hkcmpEAX<1321341, 0x97>::Install();  // TESWeightForm::GetFormWeight
 		}
 
-		if (!MCM::Settings::Setting::bAmmoWeight)
+		if (!MCM::Settings::Setting::bAmmoWeight.GetValue())
 		{
 			hkcmpEAX<1321341, 0x121>::Install();  // TESWeightForm::GetFormWeight
 		}
 
-		if (!MCM::Settings::Setting::bConsole)
+		if (!MCM::Settings::Setting::bConsole.GetValue())
 		{
 			hkcmpEAX<927099, 0x20F>::Install();  // MenuOpenHandler::HandleEvent
 		}
 
-		if (!MCM::Settings::Setting::bEnemyMarkers)
+		if (!MCM::Settings::Setting::bEnemyMarkers.GetValue())
 		{
 			hkcmpEAX<1475119, 0x23>::Install();  // HUDMarkerUtils::GetHostileEnemyMaxDistance
 		}
 
-		if (!MCM::Settings::Setting::bFastTravel)
+		if (!MCM::Settings::Setting::bFastTravel.GetValue())
 		{
 			hkcmpEAX<712982, 0x323>::Install();  // PipboyMenu::PipboyMenu
 			hkcmpEAX<1327120, 0x18>::Install();  // nsPipboyMenu::CheckHardcoreFastTravel
 		}
 
-		if (!MCM::Settings::Setting::bLocationMarkers)
+		if (!MCM::Settings::Setting::bLocationMarkers.GetValue())
 		{
 			hkcmpEAX<1301956, 0x10>::Install();  // HUDMarkerUtils::GetLocationMaxDistance
 			hkcmpEAX<1153736, 0xA7>::Install();  // CalculateCompassMarkersFunctor::UpdateLocationMarkers
 		}
 
-		if (!MCM::Settings::Setting::bMenuSaving)
+		if (!MCM::Settings::Setting::bMenuSaving.GetValue())
 		{
 			hkcmpEAX<1330449, 0xC6>::Install();   // PauseMenu::InitMainList
 			hkcmpEAX<425422, 0x4C>::Install();    // PauseMenu::CheckIfSaveLoadPossible
@@ -50,39 +50,39 @@ public:
 			hkcmpEBX<1103363, 0x81A>::Install();  // StartMenuBase::SendGameplayOptions
 		}
 
-		if (!MCM::Settings::Setting::bQuickSaveLoad)
+		if (!MCM::Settings::Setting::bQuickSaveLoad.GetValue())
 		{
 			hkcmpEAX<1470086, 0x71>::Install();  // QuickSaveLoadHandler::HandleEvent
 		}
 
-		if (!MCM::Settings::Setting::bSaveOnLevel)
+		if (!MCM::Settings::Setting::bSaveOnLevel.GetValue())
 		{
 			hkcmpEAX<1158548, 0x53>::Install();  // LevelUpMenu::~LevelUpMenu
 		}
 
-		if (!MCM::Settings::Setting::bSaveOnPip)
+		if (!MCM::Settings::Setting::bSaveOnPip.GetValue())
 		{
 			hkcmpEAX<1231000, 0x18F>::Install();  // PipboyManager::OnPipboyCloseAnim
 		}
 
-		if (!MCM::Settings::Setting::bSaveOnSleep)
+		if (!MCM::Settings::Setting::bSaveOnSleep.GetValue())
 		{
 			hkcmpEAX<1551767, 0xCC>::Install();   // PlayerCharacter::WakeUp
 			hkcmpEAX<1551767, 0x14B>::Install();  // PlayerCharacter::WakeUp
 		}
 
-		if (!MCM::Settings::Setting::bSaveOnTravel)
+		if (!MCM::Settings::Setting::bSaveOnTravel.GetValue())
 		{
 			hkcmpEAX<146861, 0x67D>::Install();  // PlayerCharacter::HandlePositionPlayerRequest
 			hkcmpEAX<374033, 0x2B>::Install();   // PlayerCharacter::RequestQueueDoorAutosave
 		}
 
-		if (!MCM::Settings::Setting::bSaveOnWorkshop)
+		if (!MCM::Settings::Setting::bSaveOnWorkshop.GetValue())
 		{
 			hkcmpEAX<98443, 0x198>::Install();  // WorkshopMenu::~WorkshopMenu
 		}
 
-		if (!MCM::Settings::Setting::bSurvivalLock)
+		if (!MCM::Settings::Setting::bSurvivalLock.GetValue())
 		{
 			// PauseMenu::CheckIfSaveLoadPossible
 			static REL::Relocation<std::uintptr_t> target{ REL::ID(425422), 0x14D };
@@ -91,7 +91,7 @@ public:
 			hkmovEDX<402595, 0x28>::Install();  // ExitSurvivalModeCallback::operator()
 		}
 
-		if (!MCM::Settings::Setting::bToggleGodMode)
+		if (!MCM::Settings::Setting::bToggleGodMode.GetValue())
 		{
 			hkcmpEAX<1032309, 0x35>::Install();  // PlayerCharacter::IsGodMode
 			hkcmpEAX<500346, 0x35>::Install();   // PlayerCharacter::IsImmortal
@@ -176,63 +176,26 @@ private:
 
 namespace
 {
-	void InitializeLog()
+	void MessageCallback(F4SE::MessagingInterface::Message* a_msg)
 	{
-		auto path = logger::log_directory();
-		if (!path)
+		switch (a_msg->type)
 		{
-			stl::report_and_fail("Failed to find standard logging directory"sv);
+		case F4SE::MessagingInterface::kPostLoad:
+		{
+			MCM::Settings::Update();
+			Hooks::Install();
+			break;
 		}
-
-		*path /= fmt::format(FMT_STRING("{:s}.log"sv), Version::PROJECT);
-		auto sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(path->string(), true);
-
-		auto log = std::make_shared<spdlog::logger>("global log"s, std::move(sink));
-		auto lvl = *Settings::General::EnableDebugLogging
-		             ? spdlog::level::trace
-		             : spdlog::level::info;
-
-		log->set_level(lvl);
-		log->flush_on(lvl);
-
-		spdlog::set_default_logger(std::move(log));
-		spdlog::set_pattern("[%m/%d/%Y - %T] [%^%l%$] %v"s);
-
-		logger::info(FMT_STRING("{:s} v{:s}"sv), Version::PROJECT, Version::NAME);
+		default:
+			break;
+		}
 	}
 }
 
-extern "C" DLLEXPORT bool F4SEAPI F4SEPlugin_Query(const F4SE::QueryInterface* a_F4SE, F4SE::PluginInfo* a_info)
+F4SEPluginLoad(const F4SE::LoadInterface* a_F4SE)
 {
-	a_info->infoVersion = F4SE::PluginInfo::kVersion;
-	a_info->name = Version::PROJECT.data();
-	a_info->version = Version::MAJOR;
-
-	const auto rtv = a_F4SE->RuntimeVersion();
-	if (rtv < F4SE::RUNTIME_LATEST)
-	{
-		stl::report_and_fail(
-			fmt::format(
-				FMT_STRING("{:s} does not support runtime v{:s}."sv),
-				Version::PROJECT,
-				rtv.string()));
-	}
-
-	return true;
-}
-
-extern "C" DLLEXPORT bool F4SEAPI F4SEPlugin_Load(const F4SE::LoadInterface* a_F4SE)
-{
-	Settings::Load();
-	InitializeLog();
-
-	logger::info(FMT_STRING("{:s} loaded."sv), Version::PROJECT);
-	logger::debug("Debug logging enabled."sv);
-
 	F4SE::Init(a_F4SE);
-
-	MCM::Settings::Update();
-	Hooks::Install();
+	F4SE::GetMessagingInterface()->RegisterListener(MessageCallback);
 
 	return true;
 }
