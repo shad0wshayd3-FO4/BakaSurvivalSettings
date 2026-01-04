@@ -185,7 +185,7 @@ namespace Hooks
 		{
 			return GetSingleton()->GetDifficultyLevel_Impl(a_this);
 		}
-		
+
 		inline static REL::Hook _GetDifficultyLevel0{ REL::ID(2224179), 0x34C, GetDifficultyLevel };  // PipboyMenu::PipboyMenu
 		inline static REL::Hook _GetDifficultyLevel1{ REL::ID(2224206), 0x014, GetDifficultyLevel };  // nsPipboyMenu::CheckHardcoreFastTravel
 	};
@@ -549,7 +549,7 @@ namespace
 
 F4SE_PLUGIN_LOAD(const F4SE::LoadInterface* a_f4se)
 {
-	F4SE::Init(a_f4se, { .trampoline = true, .trampolineSize = 1024 });
+	F4SE::Init(a_f4se, { .trampoline = true, .trampolineSize = 256 });
 	F4SE::GetMessagingInterface()->RegisterListener(MessageCallback);
 	return true;
 }
