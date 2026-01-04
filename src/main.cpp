@@ -1,178 +1,532 @@
-#include "MCM/MCM.h"
-
-class Hooks
+namespace MCM
 {
-public:
-	static void Install()
+	class Settings
 	{
-		if (!MCM::Settings::General::bEnable.GetValue())
+	public:
+		class General
 		{
-			return;
+		public:
+			inline static REX::INI::Bool bEnabled{ "General", "bEnabled", true };
+
+			inline static REX::INI::Bool bDisableConsole{ "General", "bDisableConsole", false };
+			inline static REX::INI::Bool bDisableFastTravel{ "General", "bDisableFastTravel", false };
+			inline static REX::INI::Bool bDisableGodMode{ "General", "bDisableGodMode", false };
+			inline static REX::INI::Bool bDisableSaveAuto{ "General", "bDisableSaveAuto", false };
+			inline static REX::INI::Bool bDisableSaveSelf{ "General", "bDisableSaveSelf", false };
+			inline static REX::INI::Bool bEnableAlchWeight{ "General", "bEnableAlchWeight", true };
+			inline static REX::INI::Bool bEnableAmmoWeight{ "General", "bEnableAmmoWeight", true };
+			inline static REX::INI::Bool bEnableSleepSave{ "General", "bEnableSleepSave", true };
+			inline static REX::INI::Bool bLimitCompassEnemies{ "General", "bLimitCompassEnemies", true };
+			inline static REX::INI::Bool bLimitCompassLocations{ "General", "bLimitCompassLocations", true };
+			inline static REX::INI::Bool bLockSurvival{ "General", "bLockSurvival", false };
+		};
+
+		static void Update()
+		{
+			Register();
+
+			const auto ini = REX::INI::SettingStore::GetSingleton();
+			ini->Init(
+				"Data/MCM/Config/BakaSurvivalSettings/settings.ini",
+				"Data/MCM/Settings/BakaSurvivalSettings.ini");
+			ini->Load();
+
+			PostUpdate();
 		}
 
-		if (!MCM::Settings::Setting::bAidWeight.GetValue())
+	private:
+		class EventHandler :
+			public REX::Singleton<EventHandler>,
+			public RE::BSTEventSink<RE::MenuOpenCloseEvent>
 		{
-			hkcmpEAX<1321341, 0x97>::Install();  // TESWeightForm::GetFormWeight
+		public:
+			virtual RE::BSEventNotifyControl ProcessEvent(const RE::MenuOpenCloseEvent& a_event, RE::BSTEventSource<RE::MenuOpenCloseEvent>* a_sink) override
+			{
+				if (a_event.menuName == "PauseMenu" && !a_event.opening)
+				{
+					MCM::Settings::Update();
+				}
+
+				return RE::BSEventNotifyControl::kContinue;
+			}
+		};
+
+		static void NotifyOfPlayerDifficultySettingChanged(std::int32_t a_old, std::int32_t a_new)
+		{
+			using func_t = decltype(&NotifyOfPlayerDifficultySettingChanged);
+			static REL::Relocation<func_t> func{ REL::ID(2232842) };
+			return func(a_old, a_new);
 		}
 
-		if (!MCM::Settings::Setting::bAmmoWeight.GetValue())
+		static void PostUpdate()
 		{
-			hkcmpEAX<1321341, 0x121>::Install();  // TESWeightForm::GetFormWeight
+			if (auto PlayerCharacter = RE::PlayerCharacter::GetSingleton())
+			{
+				auto idx = std::to_underlying(PlayerCharacter->GetDifficultyLevel());
+				NotifyOfPlayerDifficultySettingChanged(idx, idx);
+			}
 		}
 
-		if (!MCM::Settings::Setting::bConsole.GetValue())
+		static void Register()
 		{
-			hkcmpEAX<927099, 0x20F>::Install();  // MenuOpenHandler::HandleEvent
+			if (bRegistered)
+			{
+				return;
+			}
+
+			if (auto UI = RE::UI::GetSingleton())
+			{
+				UI->RegisterSink<RE::MenuOpenCloseEvent>(EventHandler::GetSingleton());
+				bRegistered = true;
+			}
 		}
 
-		if (!MCM::Settings::Setting::bEnemyMarkers.GetValue())
+		inline static bool bRegistered{ false };
+	};
+}
+
+namespace Hooks
+{
+	namespace detail
+	{
+		class hkGetDifficultyLevel
 		{
-			hkcmpEAX<1475119, 0x23>::Install();  // HUDMarkerUtils::GetHostileEnemyMaxDistance
+		public:
+			virtual bool UseSurvivalLogic() = 0;
+
+			virtual RE::DifficultyLevel GetDifficultyLevel_Impl(RE::PlayerCharacter* a_this)
+			{
+				if (!MCM::Settings::General::bEnabled)
+				{
+					return a_this->GetDifficultyLevel();
+				}
+
+				if (UseSurvivalLogic())
+				{
+					return RE::DifficultyLevel::kTrueSurvival;
+				}
+
+				return RE::DifficultyLevel::kVeryEasy;
+			}
+		};
+
+		class hkDisableGodMode :
+			public hkGetDifficultyLevel
+		{
+		public:
+			virtual bool UseSurvivalLogic() override
+			{
+				return MCM::Settings::General::bDisableGodMode;
+			}
+		};
+
+		class hkDisableSaveAuto :
+			public hkGetDifficultyLevel
+		{
+		public:
+			virtual bool UseSurvivalLogic() override
+			{
+				return MCM::Settings::General::bDisableSaveAuto;
+			}
+		};
+
+		class hkLockSurvival :
+			public hkGetDifficultyLevel
+		{
+		public:
+			virtual bool UseSurvivalLogic() override
+			{
+				return MCM::Settings::General::bLockSurvival;
+			}
+		};
+
+		static bool GodMode()
+		{
+			static REL::Relocation<bool*> singleton{ REL::ID(2698645) };
+			return *singleton;
 		}
 
-		if (!MCM::Settings::Setting::bFastTravel.GetValue())
+		static bool ImmortalMode()
 		{
-			hkcmpEAX<712982, 0x323>::Install();  // PipboyMenu::PipboyMenu
-			hkcmpEAX<1327120, 0x18>::Install();  // nsPipboyMenu::CheckHardcoreFastTravel
-		}
-
-		if (!MCM::Settings::Setting::bLocationMarkers.GetValue())
-		{
-			hkcmpEAX<1301956, 0x10>::Install();  // HUDMarkerUtils::GetLocationMaxDistance
-			hkcmpEAX<1153736, 0xA7>::Install();  // CalculateCompassMarkersFunctor::UpdateLocationMarkers
-		}
-
-		if (!MCM::Settings::Setting::bMenuSaving.GetValue())
-		{
-			hkcmpEAX<1330449, 0xC6>::Install();   // PauseMenu::InitMainList
-			hkcmpEAX<425422, 0x4C>::Install();    // PauseMenu::CheckIfSaveLoadPossible
-			hkcmpEAX<540706, 0x6FE>::Install();   // BGSSaveLoadManager::DoLoadGame
-			hkcmpEBX<1103363, 0x81A>::Install();  // StartMenuBase::SendGameplayOptions
-		}
-
-		if (!MCM::Settings::Setting::bQuickSaveLoad.GetValue())
-		{
-			hkcmpEAX<1470086, 0x71>::Install();  // QuickSaveLoadHandler::HandleEvent
-		}
-
-		if (!MCM::Settings::Setting::bSaveOnLevel.GetValue())
-		{
-			hkcmpEAX<1158548, 0x53>::Install();  // LevelUpMenu::~LevelUpMenu
-		}
-
-		if (!MCM::Settings::Setting::bSaveOnPip.GetValue())
-		{
-			hkcmpEAX<1231000, 0x18F>::Install();  // PipboyManager::OnPipboyCloseAnim
-		}
-
-		if (!MCM::Settings::Setting::bSaveOnSleep.GetValue())
-		{
-			hkcmpEAX<1551767, 0xCC>::Install();   // PlayerCharacter::WakeUp
-			hkcmpEAX<1551767, 0x14B>::Install();  // PlayerCharacter::WakeUp
-		}
-
-		if (!MCM::Settings::Setting::bSaveOnTravel.GetValue())
-		{
-			hkcmpEAX<146861, 0x67D>::Install();  // PlayerCharacter::HandlePositionPlayerRequest
-			hkcmpEAX<374033, 0x2B>::Install();   // PlayerCharacter::RequestQueueDoorAutosave
-		}
-
-		if (!MCM::Settings::Setting::bSaveOnWorkshop.GetValue())
-		{
-			hkcmpEAX<98443, 0x198>::Install();  // WorkshopMenu::~WorkshopMenu
-		}
-
-		if (!MCM::Settings::Setting::bSurvivalLock.GetValue())
-		{
-			// PauseMenu::CheckIfSaveLoadPossible
-			static REL::Relocation<std::uintptr_t> target{ REL::ID(425422), 0x14D };
-			REL::safe_fill(target.address(), REL::NOP, 0x05);
-
-			hkmovEDX<402595, 0x28>::Install();  // ExitSurvivalModeCallback::operator()
-		}
-
-		if (!MCM::Settings::Setting::bToggleGodMode.GetValue())
-		{
-			hkcmpEAX<1032309, 0x35>::Install();  // PlayerCharacter::IsGodMode
-			hkcmpEAX<500346, 0x35>::Install();   // PlayerCharacter::IsImmortal
-			hkcmpEAX<1111932, 0x3E>::Install();  // PlayerCharacter::IsInvulnerable
-			hkcmpEAX<1240293, 0x7A>::Install();  // PlayerCharacter::KillImpl
+			static REL::Relocation<bool*> singleton{ REL::ID(2698646) };
+			return *singleton;
 		}
 	}
 
-private:
-	template <std::uint64_t ID, std::ptrdiff_t OFF>
-	class hkcmpEAX
+	class hkDisableConsole :
+		public detail::hkGetDifficultyLevel,
+		public REX::Singleton<hkDisableConsole>
+	{
+	private:
+		virtual bool UseSurvivalLogic() override
+		{
+			return MCM::Settings::General::bDisableConsole;
+		}
+
+		static RE::DifficultyLevel GetDifficultyLevel(RE::PlayerCharacter* a_this)
+		{
+			return GetSingleton()->GetDifficultyLevel_Impl(a_this);
+		}
+
+		inline static REL::Hook _GetDifficultyLevel0{ REL::ID(2249425), 0x1AA, GetDifficultyLevel };  // MenuOpenHandler::HandleEvent
+	};
+
+	class hkDisableFastTravel :
+		public detail::hkGetDifficultyLevel,
+		public REX::Singleton<hkDisableFastTravel>
+	{
+	private:
+		virtual bool UseSurvivalLogic() override
+		{
+			return MCM::Settings::General::bDisableFastTravel;
+		}
+
+		static RE::DifficultyLevel GetDifficultyLevel(RE::PlayerCharacter* a_this)
+		{
+			return GetSingleton()->GetDifficultyLevel_Impl(a_this);
+		}
+		
+		inline static REL::Hook _GetDifficultyLevel0{ REL::ID(2224179), 0x34C, GetDifficultyLevel };  // PipboyMenu::PipboyMenu
+		inline static REL::Hook _GetDifficultyLevel1{ REL::ID(2224206), 0x014, GetDifficultyLevel };  // nsPipboyMenu::CheckHardcoreFastTravel
+	};
+
+	class hkDisableGodMode0 :
+		public detail::hkDisableGodMode,
+		public REX::Singleton<hkDisableGodMode0>
 	{
 	public:
 		static void Install()
 		{
-			static REL::Relocation<std::uintptr_t> target{ REL::ID(ID), OFF };
-			REL::safe_fill(target.address(), REL::NOP, 0x03);
-
-			auto code = cmpEAX();
-			assert(code.getSize() <= 0x03);
-			REL::safe_write(target.address(), code.getCode(), code.getSize());
-		}
+			static REL::Relocation target{ REL::ID(2232986) };
+			target.replace_func(0x3F, IsGodMode);
+	}
 
 	private:
-		struct cmpEAX : Xbyak::CodeGenerator
+		static bool IsGodMode()
 		{
-			cmpEAX()
-			{
-				cmp(eax, 7);
-			}
-		};
+			if (!detail::GodMode())
+				return false;
+			if (!RE::PlayerCharacter::GetSingleton())
+				return true;
+			if (!GetSingleton()->UseSurvivalLogic())
+				return true;
+			return false;
+		}
 	};
 
-	template <std::uint64_t ID, std::ptrdiff_t OFF>
-	class hkcmpEBX
+	class hkDisableGodMode1 :
+		public detail::hkDisableGodMode,
+		public REX::Singleton<hkDisableGodMode1>
 	{
 	public:
 		static void Install()
 		{
-			static REL::Relocation<std::uintptr_t> target{ REL::ID(ID), OFF };
-			REL::safe_fill(target.address(), REL::NOP, 0x03);
-
-			auto code = cmpEBX();
-			assert(code.getSize() <= 0x03);
-			REL::safe_write(target.address(), code.getCode(), code.getSize());
+			static REL::Relocation target{ REL::ID(2232988) };
+			target.replace_func(0x3F, IsImmortal);
 		}
 
 	private:
-		struct cmpEBX : Xbyak::CodeGenerator
+		static bool IsImmortal()
 		{
-			cmpEBX()
-			{
-				cmp(ebx, 7);
-			}
-		};
+			if (!detail::ImmortalMode())
+				return false;
+			if (!RE::PlayerCharacter::GetSingleton())
+				return true;
+			if (!GetSingleton()->UseSurvivalLogic())
+				return true;
+			return false;
+		}
 	};
 
-	template <std::uint64_t ID, std::ptrdiff_t OFF>
-	class hkmovEDX
+	class hkDisableGodMode2 :
+		public detail::hkDisableGodMode,
+		public REX::Singleton<hkDisableGodMode2>
+	{
+	private:
+		static bool IsInvulnerable(RE::PlayerCharacter* a_this)
+		{
+			if (detail::GodMode() && !GetSingleton()->UseSurvivalLogic())
+			{
+				return true;
+			}
+
+			if (a_this->GetGhost() || ((a_this->queuedTargetLoc.angle.x - RE::AITimer::fTimer()) > 0.0f))
+			{
+				return true;
+			}
+
+			return false;
+		}
+
+		inline static REL::HookVFT _IsInvulnerable{ RE::PlayerCharacter::VTABLE[0], 0x4, IsInvulnerable };
+	};
+
+	class hkDisableSaveAuto0 :
+		public detail::hkDisableSaveAuto,
+		public REX::Singleton<hkDisableSaveAuto0>
+	{
+	private:
+		static RE::DifficultyLevel GetDifficultyLevel(RE::PlayerCharacter* a_this)
+		{
+			return GetSingleton()->GetDifficultyLevel_Impl(a_this);
+		}
+
+		inline static REL::Hook _GetDifficultyLevel0{ REL::ID(2223294), 0x004E, GetDifficultyLevel };  // LevelUpMenu::unk (dtor copy?)
+		inline static REL::Hook _GetDifficultyLevel1{ REL::ID(2223327), 0x0057, GetDifficultyLevel };  // LevelUpMenu::~LevelUpMenu
+		inline static REL::Hook _GetDifficultyLevel2{ REL::ID(2224974), 0x013E, GetDifficultyLevel };  // WorkshopMenu::~WorkshopMenu
+		inline static REL::Hook _GetDifficultyLevel3{ REL::ID(2225457), 0x01A4, GetDifficultyLevel };  // PipboyManager::OnPipboyCloseAnim
+		inline static REL::Hook _GetDifficultyLevel4{ REL::ID(2232905), 0x06A1, GetDifficultyLevel };  // PlayerCharacter::HandlePositionPlayerRequest
+	};
+
+	class hkDisableSaveAuto1 :
+		public detail::hkDisableSaveAuto,
+		public REX::Singleton<hkDisableSaveAuto1>
+	{
+	private:
+		static void RequestQueueDoorAutosave(RE::PlayerCharacter* a_this)
+		{
+			auto DifficultyLevel = GetSingleton()->GetDifficultyLevel_Impl(a_this);
+			switch (DifficultyLevel)
+			{
+			case RE::DifficultyLevel::kTrueSurvival:
+				break;
+			default:
+				a_this->doorAutosaveQueued = true;
+				break;
+			}
+		}
+
+		inline static REL::Hook _RequestQueueDoorAutosave0{ REL::ID(2198697), 0x1B4, RequestQueueDoorAutosave };  // TESObjectDOOR::DoorTeleportPlayerArrivalCallback
+	};
+
+	class hkDisableSaveAuto2 :
+		public detail::hkDisableSaveAuto,
+		public REX::Singleton<hkDisableSaveAuto2>
+	{
+	private:
+		static RE::DifficultyLevel GetMenuDifficultyLevel(RE::StartMenuBase* a_this)
+		{
+			if (auto PlayerCharacter = RE::PlayerCharacter::GetSingleton())
+			{
+				return GetSingleton()->GetDifficultyLevel_Impl(PlayerCharacter);
+			}
+
+			return _GetMenuDifficultyLevel0(a_this);
+		}
+
+		inline static REL::Hook _GetMenuDifficultyLevel0{ REL::ID(4483089), 0x3A, GetMenuDifficultyLevel };  // StartMenuBase::SendGameplayOptions
+	};
+
+	class hkDisableSaveAuto3 :
+		public detail::hkDisableSaveAuto,
+		public REX::Singleton<hkDisableSaveAuto3>
+	{
+	private:
+		static bool SetMember(void* a_this, void* a_data, const char* a_name, Scaleform::GFx::Value& a_value, bool a_isObj)
+		{
+			if (auto PlayerCharacter = RE::PlayerCharacter::GetSingleton())
+			{
+				a_value = std::to_underlying(PlayerCharacter->GetDifficultyLevel());
+			}
+
+			return _SetMember0(a_this, a_data, a_name, a_value, a_isObj);
+		}
+
+		inline static REL::Hook _SetMember0{ REL::ID(4483089), 0xDB, SetMember };  // StartMenuBase::SendGameplayOptions
+	};
+
+	class hkDisableSaveAuto4 :
+		public detail::hkDisableSaveAuto,
+		public REX::Singleton<hkDisableSaveAuto4>
 	{
 	public:
 		static void Install()
 		{
-			static REL::Relocation<std::uintptr_t> target{ REL::ID(ID), OFF };
-			REL::safe_fill(target.address(), REL::NOP, 0x05);
-
-			auto code = movEDX();
-			assert(code.getSize() <= 0x05);
-			REL::safe_write(target.address(), code.getCode(), code.getSize());
+			static REL::Relocation target{ REL::ID(2232890) };
+			static constexpr auto  TARGET_ADDR{ 0x122 };
+			static constexpr auto  TARGET_RETN{ 0x163 };
+			static constexpr auto  TARGET_FILL{ TARGET_RETN - TARGET_ADDR };
+			target.write_fill<TARGET_ADDR>(REL::NOP, TARGET_FILL);
 		}
 
 	private:
-		struct movEDX : Xbyak::CodeGenerator
+		static void SendWaitStopEvent(bool a_interrupted)
 		{
-			movEDX()
+			_SendWaitStopEvent0(a_interrupted);
+			if (bSaveOnWait->GetBinary())
 			{
-				mov(edx, 0);
+				if (GetSingleton()->UseSurvivalLogic())
+				{
+					return;
+				}
+
+				if (auto BGSSaveLoadManager = RE::BGSSaveLoadManager::GetSingleton())
+				{
+					BGSSaveLoadManager->QueueSaveLoadTask(RE::BGSSaveLoadManager::QUEUED_TASK::kAutoSave);
+				}
 			}
-		};
+		}
+
+		inline static REL::Relocation<RE::SettingT<RE::INISettingCollection>*> bSaveOnWait{ REL::ID(122528) };
+		inline static REL::Hook _SendWaitStopEvent0{ REL::ID(2232890), 0x11D, SendWaitStopEvent };  // PlayerCharacter::WakeUp
 	};
-};
+
+	class hkDisableSaveSelf :
+		public detail::hkGetDifficultyLevel,
+		public REX::Singleton<hkDisableSaveSelf>
+	{
+	private:
+		virtual bool UseSurvivalLogic() override
+		{
+			return MCM::Settings::General::bDisableSaveSelf;
+		}
+
+		static RE::DifficultyLevel GetDifficultyLevel(RE::PlayerCharacter* a_this)
+		{
+			return GetSingleton()->GetDifficultyLevel_Impl(a_this);
+		}
+
+		inline static REL::Hook _GetDifficultyLevel0{ REL::ID(2223964), 0x00C6, GetDifficultyLevel };  // PauseMenu::InitMainList
+		inline static REL::Hook _GetDifficultyLevel1{ REL::ID(2223965), 0x004D, GetDifficultyLevel };  // PauseMenu::CheckIfSaveLoadPossible
+		inline static REL::Hook _GetDifficultyLevel2{ REL::ID(2228040), 0x1469, GetDifficultyLevel };  // BGSSaveLoadManager::DoLoadGame
+		inline static REL::Hook _GetDifficultyLevel3{ REL::ID(2249427), 0x006C, GetDifficultyLevel };  // QuickSaveLoadHandler::HandleEvent
+	};
+
+	class hkEnableAlchWeight :
+		public detail::hkGetDifficultyLevel,
+		public REX::Singleton<hkEnableAlchWeight>
+	{
+	private:
+		virtual bool UseSurvivalLogic() override
+		{
+			return MCM::Settings::General::bEnableAlchWeight;
+		}
+
+		static RE::DifficultyLevel GetDifficultyLevel(RE::PlayerCharacter* a_this)
+		{
+			return GetSingleton()->GetDifficultyLevel_Impl(a_this);
+		}
+
+		inline static REL::Hook _GetDifficultyLevel0{ REL::ID(2193446), 0x8E, GetDifficultyLevel };  // TESWeightForm::GetFormWeight
+	};
+
+	class hkEnableAmmoWeight :
+		public detail::hkGetDifficultyLevel,
+		public REX::Singleton<hkEnableAmmoWeight>
+	{
+	private:
+		virtual bool UseSurvivalLogic() override
+		{
+			return MCM::Settings::General::bEnableAmmoWeight;
+		}
+
+		static RE::DifficultyLevel GetDifficultyLevel(RE::PlayerCharacter* a_this)
+		{
+			return GetSingleton()->GetDifficultyLevel_Impl(a_this);
+		}
+
+		inline static REL::Hook _GetDifficultyLevel0{ REL::ID(2193446), 0x110, GetDifficultyLevel };  // TESWeightForm::GetFormWeight
+	};
+
+	class hkEnableSleepSave :
+		public detail::hkGetDifficultyLevel,
+		public REX::Singleton<hkEnableSleepSave>
+	{
+	private:
+		virtual bool UseSurvivalLogic() override
+		{
+			return MCM::Settings::General::bEnableSleepSave;
+		}
+
+		static void QueueSaveLoadTask(RE::BGSSaveLoadManager* a_this, RE::BGSSaveLoadManager::QUEUED_TASK a_task)
+		{
+			if (GetSingleton()->UseSurvivalLogic())
+			{
+				_QueueSaveLoadTask0(a_this, a_task);
+			}
+		}
+
+		inline static REL::Hook _QueueSaveLoadTask0{ REL::ID(2232890), 0xDD, QueueSaveLoadTask };  // PlayerCharacter::WakeUp
+	};
+
+	class hkLimitCompassEnemies :
+		public detail::hkGetDifficultyLevel,
+		public REX::Singleton<hkLimitCompassEnemies>
+	{
+	private:
+		virtual bool UseSurvivalLogic() override
+		{
+			return MCM::Settings::General::bLimitCompassEnemies;
+		}
+
+		static RE::DifficultyLevel GetDifficultyLevel(RE::PlayerCharacter* a_this)
+		{
+			return GetSingleton()->GetDifficultyLevel_Impl(a_this);
+		}
+
+		inline static REL::Hook _GetDifficultyLevel0{ REL::ID(2220612), 0x1B, GetDifficultyLevel };  // HUDMarkerUtils::GetHostileEnemyMaxDistance
+	};
+
+	class hkLimitCompassLocations :
+		public detail::hkGetDifficultyLevel,
+		public REX::Singleton<hkLimitCompassLocations>
+	{
+	private:
+		virtual bool UseSurvivalLogic() override
+		{
+			return MCM::Settings::General::bLimitCompassLocations;
+		}
+
+		static RE::DifficultyLevel GetDifficultyLevel(RE::PlayerCharacter* a_this)
+		{
+			return GetSingleton()->GetDifficultyLevel_Impl(a_this);
+		}
+
+		inline static REL::Hook _GetDifficultyLevel0{ REL::ID(2220611), 0x0B, GetDifficultyLevel };  // HUDMarkerUtils::GetLocationMaxDistance
+		inline static REL::Hook _GetDifficultyLevel1{ REL::ID(2220617), 0x86, GetDifficultyLevel };  // CalculateCompassMarkersFunctor::UpdateLocationMarkers
+	};
+
+	class hkLockSurvival0 :
+		public detail::hkLockSurvival,
+		public REX::Singleton<hkLockSurvival0>
+	{
+	private:
+		static bool QueryStat(const RE::BSFixedString& a_name, std::int32_t& a_value)
+		{
+			if (GetSingleton()->UseSurvivalLogic())
+			{
+				return _QueryStat0(a_name, a_value);
+			}
+
+			return false;
+		}
+
+		inline static REL::Hook _QueryStat0{ REL::ID(2223965), 0x153, QueryStat };  // PauseMenu::CheckIfSaveLoadPossible
+	};
+
+	class hkLockSurvival1 :
+		public detail::hkLockSurvival,
+		public REX::Singleton<hkLockSurvival1>
+	{
+	private:
+		static std::uint64_t SetVal(const RE::BSFixedString& a_name, std::int32_t a_value)
+		{
+			if (GetSingleton()->UseSurvivalLogic())
+			{
+				return _SetVal0(a_name, a_value);
+			}
+
+			return _SetVal0(a_name, 0);
+		}
+
+		inline static REL::Hook _SetVal0{ REL::ID(2223987), 0x35, SetVal };  // ExitSurvivalModeCallback::operator()
+	};
+
+	static void Install()
+	{
+		hkDisableSaveAuto4::Install();
+	}
+}
 
 namespace
 {
@@ -181,21 +535,21 @@ namespace
 		switch (a_msg->type)
 		{
 		case F4SE::MessagingInterface::kPostLoad:
-		{
-			MCM::Settings::Update();
 			Hooks::Install();
 			break;
-		}
+		case F4SE::MessagingInterface::kGameDataReady:
+			if (static_cast<bool>(a_msg->data))
+				MCM::Settings::Update();
+			break;
 		default:
 			break;
 		}
 	}
 }
 
-F4SEPluginLoad(const F4SE::LoadInterface* a_F4SE)
+F4SE_PLUGIN_LOAD(const F4SE::LoadInterface* a_f4se)
 {
-	F4SE::Init(a_F4SE);
+	F4SE::Init(a_f4se, { .trampoline = true, .trampolineSize = 1024 });
 	F4SE::GetMessagingInterface()->RegisterListener(MessageCallback);
-
 	return true;
 }
