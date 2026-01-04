@@ -308,6 +308,7 @@ namespace Hooks
 		{
 			if (auto PlayerCharacter = RE::PlayerCharacter::GetSingleton())
 			{
+				_GetMenuDifficultyLevel0(a_this);
 				return GetSingleton()->GetDifficultyLevel_Impl(PlayerCharacter);
 			}
 
@@ -324,9 +325,12 @@ namespace Hooks
 	private:
 		static bool SetMember(void* a_this, void* a_data, const char* a_name, Scaleform::GFx::Value& a_value, bool a_isObj)
 		{
-			if (auto PlayerCharacter = RE::PlayerCharacter::GetSingleton())
+			if (auto UI = RE::UI::GetSingleton())
 			{
-				a_value = std::to_underlying(PlayerCharacter->GetDifficultyLevel());
+				if (auto MainMenu = UI->GetMenu<RE::MainMenu>())
+				{
+					a_value = std::to_underlying(MainMenu->GetMenuDifficultyLevel());
+				}
 			}
 
 			return _SetMember0(a_this, a_data, a_name, a_value, a_isObj);
