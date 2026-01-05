@@ -6,7 +6,7 @@ includes("lib/commonlibf4")
 
 -- set project
 set_project("BakaSurvivalSettings")
-set_version("1.1.0")
+set_version("1.2.0")
 set_license("GPL-3.0")
 
 -- set defaults

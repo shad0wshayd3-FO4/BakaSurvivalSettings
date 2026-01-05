@@ -528,6 +528,8 @@ namespace Hooks
 
 	static void Install()
 	{
+		hkDisableGodMode0::Install();
+		hkDisableGodMode1::Install();
 		hkDisableSaveAuto4::Install();
 	}
 }
