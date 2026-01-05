@@ -146,7 +146,7 @@ namespace Hooks
 			return *singleton;
 		}
 
-		static bool ImmortalMode()
+		static bool ImmMode()
 		{
 			static REL::Relocation<bool*> singleton{ REL::ID(2698646) };
 			return *singleton;
@@ -228,7 +228,7 @@ namespace Hooks
 	private:
 		static bool IsImmortal()
 		{
-			if (!detail::ImmortalMode())
+			if (!detail::ImmMode())
 				return false;
 			if (!RE::PlayerCharacter::GetSingleton())
 				return true;
@@ -243,22 +243,46 @@ namespace Hooks
 		public REX::Singleton<hkDisableGodMode2>
 	{
 	private:
-		static bool IsInvulnerable(RE::PlayerCharacter* a_this)
+		static bool IsInvulnerable(RE::MagicTarget* a_this)
 		{
 			if (detail::GodMode() && !GetSingleton()->UseSurvivalLogic())
-			{
 				return true;
-			}
-
-			if (a_this->GetGhost() || ((a_this->queuedTargetLoc.angle.x - RE::AITimer::fTimer()) > 0.0f))
-			{
-				return true;
-			}
-
+			if (auto PlayerCharacter = RE::fallout_cast<RE::PlayerCharacter*>(a_this))
+				if (PlayerCharacter->GetGhost() || PlayerCharacter->usingTeleportDoorTimeStamp.timeStamp - RE::AITimer::fTimer() > 0.0f)
+					return true;
 			return false;
 		}
 
-		inline static REL::HookVFT _IsInvulnerable{ RE::PlayerCharacter::VTABLE[0], 0x4, IsInvulnerable };
+		inline static REL::HookVFT _IsInvulnerable{ RE::PlayerCharacter::VTABLE[8], 0x4, IsInvulnerable };
+	};
+
+	class hkDisableGodMode3 :
+		public detail::hkDisableGodMode,
+		public REX::Singleton<hkDisableGodMode3>
+	{
+	private:
+		static float Actor_CheckClampDamageModifier(RE::Actor* a_this, const RE::ActorValueInfo& a_info, float a_delta)
+		{
+			using func_t = decltype(&hkDisableGodMode3::Actor_CheckClampDamageModifier);
+			static REL::Relocation<func_t> func{ REL::ID(2231029) };
+			return func(a_this, a_info, a_delta);
+		}
+
+		static float CheckClampDamageModifier(RE::PlayerCharacter* a_this, const RE::ActorValueInfo& a_info, float a_delta)
+		{
+			if (GetSingleton()->UseSurvivalLogic())
+				return Actor_CheckClampDamageModifier(a_this, a_info, a_delta);
+
+			if (detail::ImmMode() && a_delta < 0.0f && a_info.formID == 0x000002D4 && a_this->GetActorValue(a_info) + a_delta <= 0.0f)
+				return Actor_CheckClampDamageModifier(a_this, a_info, 0.0f);
+
+			if (detail::GodMode() && a_delta < 0.0f && a_info.flags.all(RE::ActorValue::Flags::kGodModeNoDamage))
+				return Actor_CheckClampDamageModifier(a_this, a_info, 0.0f);
+
+			return Actor_CheckClampDamageModifier(a_this, a_info, a_delta);
+		}
+
+		inline static REL::HookVFT _CheckClampDamageModifier{ RE::PlayerCharacter::VTABLE[0], 0x131, CheckClampDamageModifier };
 	};
 
 	class hkDisableSaveAuto0 :
